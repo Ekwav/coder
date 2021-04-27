@@ -1,0 +1,68 @@
+version: "3"
+services:
+  server:
+    build: .
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+    restart: always
+    networks:
+      - proxy
+    volumes:
+      - $HOME/.config:/home/coder/.config
+      - ./data:/home/coder/project
+      - ./settings:/home/coder/.local
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.code.entrypoints=http"
+      - "traefik.http.routers.code.rule=Host(`$CODER_DOMAIN`)"
+      - "traefik.http.routers.traefik.middlewares=https-redirect@file"
+      - "traefik.http.routers.code-secure.entrypoints=https"
+      - "traefik.http.routers.code-secure.rule=Host(`$CODER_DOMAIN`)"
+      - "traefik.http.routers.code-secure.tls=true"
+      - "traefik.http.routers.code-secure.tls.certresolver=http"
+      - "traefik.http.routers.code-secure.service=code"
+      - "traefik.http.services.code.loadbalancer.server.port=8080"
+      - "traefik.docker.network=proxy"
+
+      - "traefik.http.routers.code-angular.entrypoints=https"
+      - "traefik.http.routers.code-angular.rule=Host(`$PREVIEW_DOMAIN`)"
+      - "traefik.http.routers.code-angular.tls=true"
+      - "traefik.http.routers.code-angular.tls.certresolver=http"
+      - "traefik.http.services.code-angular.loadbalancer.server.port=4200"
+      - "traefik.http.routers.code-angular.service=code-angular"
+  devdb:
+    image: 'docker.io/bitnami/mariadb:10.3-debian-10'
+    environment:
+      - MARIADB_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+    volumes:
+      - './mariadb_data:/bitnami'
+#      - './db.conf:/opt/bitnami/mariadb/conf/my_custom.cnf:ro'
+    networks:
+      - proxy
+  phpmyadmin:
+    image: 'docker.io/bitnami/phpmyadmin:5-debian-10'
+#    ports:
+#      - '8038:8080'
+#      - '4438:8443'
+    depends_on:
+      - devdb
+    volumes:
+      - './phpmyadmin_data:/bitnami'
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.devdb-admin.entrypoints=https"
+      - "traefik.http.routers.devdb-admin.rule=Host(`$DB_DOMAIN`)"
+      - "traefik.http.routers.devdb-admin.tls=true"
+      - "traefik.http.services.devdb-admin.loadbalancer.server.port=8080"
+      - "traefik.http.routers.devdb-admin.tls.certresolver=http"
+      - "traefik.http.middlewares.devdb-admin.ipwhitelist.sourcerange=87.159.0.0/16"
+    environment:
+      - "DATABASE_HOST=devdb"
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
+

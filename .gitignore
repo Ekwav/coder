@@ -1,0 +1,5 @@
+data/
+mariadb_data/
+phpmyadmin_data/
+settings/
+.env
